@@ -1,0 +1,15 @@
+# Secrets
+.env
+.env.local
+
+# Node (Backend)
+node_modules/
+.next/
+
+# Flutter (Frontend)
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+.DS_Store
