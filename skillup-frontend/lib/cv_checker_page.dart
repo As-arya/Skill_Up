@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'loading_overlay.dart';
 import 'api_service.dart';
@@ -33,6 +34,27 @@ class _CvCheckerPageState extends State<CvCheckerPage> {
 
   Future<void> _uploadAndAnalyzeFile() async {
     if (!_canRequest()) return;
+
+    if (Platform.isAndroid) {
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
+      if (!status.isGranted) {
+        // Fallback for Android 13+
+        var photosStatus = await Permission.photos.status;
+        if (!photosStatus.isGranted) {
+          photosStatus = await Permission.photos.request();
+        }
+        if (!photosStatus.isGranted) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Storage permission is required to upload CV.'), backgroundColor: Colors.redAccent),
+          );
+          return;
+        }
+      }
+    }
 
     FilePickerResult? fileResult = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -99,9 +121,10 @@ class _CvCheckerPageState extends State<CvCheckerPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Stack(
-      children: [
-        SafeArea(
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -189,8 +212,9 @@ class _CvCheckerPageState extends State<CvCheckerPage> {
             ),
           ),
         ),
-        if (_isAnalyzing) const LoadingOverlay(),
-      ],
+          if (_isAnalyzing) const LoadingOverlay(),
+        ],
+      ),
     );
   }
 }

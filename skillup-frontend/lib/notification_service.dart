@@ -1,4 +1,8 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -9,19 +13,51 @@ class NotificationService {
 
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
-  Future<void> init() async {
+  bool _initialized = false;
+
+  Future<void> _ensureInitialized() async {
+    if (_initialized) return;
+
+    tz.initializeTimeZones();
+    final timeZoneInfo = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(timeZoneInfo.identifier));
+
     const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings('@drawable/ic_notification');
 
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-    );
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
 
     await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
     );
+
+    _initialized = true;
+  }
+
+  // Called from main.dart — ensures init happens at app start
+  Future<void> init() => _ensureInitialized();
+
+  Future<bool> requestPermission() async {
+    // Request standard notification permission
+    var status = await Permission.notification.status;
+    if (!status.isGranted) {
+      status = await Permission.notification.request();
+    }
+
+    // Explicitly request exact alarms permission on Android 12+ 
+    // to ensure exact scheduling is not blocked by Doze mode restrictions
+    final androidImplementation = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImplementation != null) {
+      await androidImplementation.requestExactAlarmsPermission();
+    }
+
+    return status.isGranted;
   }
 
   Future<void> scheduleLearningReminder({
@@ -31,35 +67,66 @@ class NotificationService {
     required int hour,
     required int minute,
   }) async {
-    // Basic implementation for a daily reminder at a specific time.
-    // For proper scheduling across specific days, you'd typically use timezone package
-    // and `zonedSchedule` from flutter_local_notifications. 
-    // Here we show a daily repeating notification.
+    await _ensureInitialized();
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+
+    // If the time has already passed today, schedule for tomorrow
+    if (!scheduledDate.isAfter(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    // Debug: print to terminal so we can verify the scheduled time
+    // ignore: avoid_print
+    print('[NotificationService] Scheduling notification id=$id '
+        'for $scheduledDate (local timezone: ${tz.local.name})');
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'learning_reminders',
       'Learning Reminders',
       channelDescription: 'Notifications to remind you to learn your skills',
       importance: Importance.max,
       priority: Priority.high,
     );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-    );
+    const NotificationDetails platformDetails =
+        NotificationDetails(android: androidDetails);
 
-    // This is a simplified approach without timezone data using showDailyAtTime which is deprecated
-    // but works for basic tests. For production, timezone based scheduling should be used.
-    // As a simple alternative, we can just show an immediate notification to prove it works.
-    await flutterLocalNotificationsPlugin.show(
+    await flutterLocalNotificationsPlugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
-      notificationDetails: platformChannelSpecifics,
+      scheduledDate: scheduledDate,
+      notificationDetails: platformDetails,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  Future<void> showImmediateTestNotification() async {
+    await _ensureInitialized();
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'learning_reminders',
+      'Learning Reminders',
+      channelDescription: 'Notifications to remind you to learn your skills',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    const NotificationDetails platformDetails =
+        NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      id: 0,
+      title: 'Notifications Active!',
+      body: 'Your SkillUp reminders have been successfully set up.',
+      notificationDetails: platformDetails,
     );
   }
 
   Future<void> cancelAllNotifications() async {
+    await _ensureInitialized();
     await flutterLocalNotificationsPlugin.cancelAll();
   }
 }

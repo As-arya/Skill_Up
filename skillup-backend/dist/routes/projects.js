@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const prisma_1 = require("../lib/prisma");
 const auth_1 = require("../middlewares/auth");
+const ai_1 = require("./ai");
 const router = (0, express_1.Router)();
 function parseTagsRobustly(tagsData) {
     let parsed = tagsData;
@@ -118,7 +119,13 @@ router.get('/fetch-readme', auth_1.requireAuth, async (req, res) => {
             return;
         }
         const markdown = Buffer.from(data.content, 'base64').toString('utf-8');
-        res.status(200).json({ markdown });
+        const cacheKey = `readme-tags-${owner}-${repo}`;
+        const aiText = await (0, ai_1.callHybridAI)({
+            prompt: `Extract up to 5 main technical tags or frameworks (e.g., "Flutter", "Node.js", "Firebase", "React") from the following project README. Respond ONLY with a JSON array of strings: ["tag1", "tag2"]. README: ${markdown.substring(0, 5000)}`,
+            cacheKey
+        });
+        const tags = (0, ai_1.extractJSON)(aiText) || [];
+        res.status(200).json({ tags });
     }
     catch (error) {
         console.error('Fetch README Error:', error);

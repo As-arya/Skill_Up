@@ -75,6 +75,19 @@ class ApiService {
     return _handleResponse(res);
   }
 
+  /// GET /api/dashboard/categories?userId=X
+  /// Returns all skill categories with completion stats for the goal picker.
+  Future<List<Map<String, dynamic>>> getDashboardCategories(int userId, String token) async {
+    final res = await http
+        .get(
+          Uri.parse('$_baseUrl/dashboard/categories?userId=$userId'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 10));
+    final body = _handleResponse(res);
+    return List<Map<String, dynamic>>.from(body['categories'] as List? ?? []);
+  }
+
   // ─── Skills ──────────────────────────────────────────────────
 
   /// GET /api/skills?userId=X
@@ -102,6 +115,29 @@ class ApiService {
           body: jsonEncode({
             'userId': userId,
             'name': name,
+            'isChecked': isChecked,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    return _handleResponse(res);
+  }
+
+  /// POST /api/skills — create new skill with category
+  Future<Map<String, dynamic>> createSkillWithCategory({
+    required int userId,
+    required String name,
+    required String category,
+    required bool isChecked,
+    required String token,
+  }) async {
+    final res = await http
+        .post(
+          Uri.parse('$_baseUrl/skills'),
+          headers: _headers(token),
+          body: jsonEncode({
+            'userId': userId,
+            'name': name,
+            'category': category,
             'isChecked': isChecked,
           }),
         )
@@ -144,6 +180,40 @@ class ApiService {
     return res.statusCode == 200;
   }
 
+  /// POST /api/skills/confirm-mastery
+  Future<Map<String, dynamic>> confirmMastery({
+    required int userId,
+    required List<String> skillNames,
+    required String token,
+  }) async {
+    final res = await http
+        .post(
+          Uri.parse('$_baseUrl/skills/confirm-mastery'),
+          headers: _headers(token),
+          body: jsonEncode({
+            'userId': userId,
+            'skillNames': skillNames,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    return _handleResponse(res);
+  }
+
+  /// POST /api/skills/cleanup — remove corrupted skill entries
+  Future<Map<String, dynamic>> cleanupSkills({
+    required int userId,
+    required String token,
+  }) async {
+    final res = await http
+        .post(
+          Uri.parse('$_baseUrl/skills/cleanup'),
+          headers: _headers(token),
+          body: jsonEncode({'userId': userId}),
+        )
+        .timeout(const Duration(seconds: 10));
+    return _handleResponse(res);
+  }
+
   // ─── Projects ────────────────────────────────────────────────
 
   /// GET /api/projects?userId=X
@@ -182,6 +252,44 @@ class ApiService {
     return _handleResponse(res);
   }
 
+  /// PUT /api/projects/:id — update existing project
+  Future<Map<String, dynamic>> updateProject({
+    required int id,
+    required String title,
+    required String description,
+    required List<String> tags,
+    required List<Map<String, String>> links,
+    required String token,
+  }) async {
+    final res = await http
+        .put(
+          Uri.parse('$_baseUrl/projects/$id'),
+          headers: _headers(token),
+          body: jsonEncode({
+            'title': title,
+            'description': description,
+            'tags': tags,
+            'links': links,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+    return _handleResponse(res);
+  }
+
+  /// DELETE /api/projects/:id — delete a project
+  Future<Map<String, dynamic>> deleteProject({
+    required int id,
+    required String token,
+  }) async {
+    final res = await http
+        .delete(
+          Uri.parse('$_baseUrl/projects/$id'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 10));
+    return _handleResponse(res);
+  }
+
   /// GET /api/projects/fetch-readme
   Future<Map<String, dynamic>> fetchReadme({
     required String repoUrl,
@@ -204,6 +312,7 @@ class ApiService {
     required int userId,
     required String targetRole,
     required String token,
+    int targetMinutes = 30,
   }) async {
     final res = await http
         .post(
@@ -212,6 +321,7 @@ class ApiService {
           body: jsonEncode({
             'userId': userId,
             'skillName': targetRole,
+            'targetMinutes': targetMinutes,
           }),
         )
         .timeout(const Duration(seconds: 10));
@@ -219,6 +329,57 @@ class ApiService {
   }
 
   // ─── AI Analysis ──────────────────────────────────────────────
+
+  /// POST /api/validate-cv — check if uploaded file is actually a CV
+  Future<Map<String, dynamic>> validateCV({
+    required int userId,
+    String? cvContent,
+    String? imageBase64,
+    String? mimeType,
+    required String token,
+  }) async {
+    final res = await http
+        .post(
+          Uri.parse('$_baseUrl/validate-cv'),
+          headers: _headers(token),
+          body: jsonEncode({
+            'userId': userId,
+            'cvText': cvContent,
+            'cvImage': imageBase64,
+            'mimeType': mimeType,
+          }),
+        )
+        .timeout(const Duration(seconds: 45));
+    return _handleResponse(res);
+  }
+
+  /// GET /api/job-suggestions — get list of known job titles for autocomplete
+  Future<List<String>> getJobSuggestions(String token) async {
+    final res = await http
+        .get(
+          Uri.parse('$_baseUrl/job-suggestions'),
+          headers: _headers(token),
+        )
+        .timeout(const Duration(seconds: 10));
+    final body = _handleResponse(res);
+    final jobs = body['jobs'] as List?;
+    return jobs?.map((e) => e.toString()).toList() ?? [];
+  }
+
+  /// POST /api/validate-job — validate and autocorrect job title
+  Future<Map<String, dynamic>> validateJob({
+    required String jobTitle,
+    required String token,
+  }) async {
+    final res = await http
+        .post(
+          Uri.parse('$_baseUrl/validate-job'),
+          headers: _headers(token),
+          body: jsonEncode({'jobTitle': jobTitle}),
+        )
+        .timeout(const Duration(seconds: 30));
+    return _handleResponse(res);
+  }
 
   /// POST /api/extract-cv
   Future<Map<String, dynamic>> extractCV({

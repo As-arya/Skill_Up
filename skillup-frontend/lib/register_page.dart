@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
-import 'main_shell.dart';
 import 'loading_overlay.dart';
 import 'api_service.dart';
-import 'user_session.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -33,7 +31,24 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _register() async {
-    if (_passwordController.text != _confirmController.text) {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (name.length <= 3) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name must be more than 3 characters'), backgroundColor: Colors.redAccent));
+      return;
+    }
+    if (email.contains(' ') || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid email format (no spaces, must contain @)'), backgroundColor: Colors.redAccent));
+      return;
+    }
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters'), backgroundColor: Colors.redAccent));
+      return;
+    }
+
+    if (password != _confirmController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Passwords do not match!'),
@@ -57,16 +72,15 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() => _isLoading = false);
 
       if (data['user'] != null) {
-        UserSession.instance.set(
-          id: data['user']['id'],
-          name: data['user']['name'],
-          email: data['user']['email'],
-          token: data['token'] ?? '',
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainShell()),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully! Please sign in.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context); // Go back to Login page
+        }
       } else {
         final errorMsg = data['error'] ?? 'Registration failed. Please try again.';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -165,31 +179,10 @@ class _RegisterPageState extends State<RegisterPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: Container(
+                    child: Image.asset(
+                      'assets/skillup_logo.png',
                       width: 64,
                       height: 64,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF13B5EA), Color(0xFF2C6CFF)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF13B5EA,
-                            ).withValues(alpha: 0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.bolt,
-                        color: Colors.white,
-                        size: 36,
-                      ),
                     ),
                   ),
                   const SizedBox(height: 16),

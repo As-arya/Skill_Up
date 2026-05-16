@@ -17,7 +17,8 @@ const ai_1 = __importDefault(require("./routes/ai"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3000;
 app.use((0, cors_1.default)());
-app.use(express_1.default.json());
+app.use(express_1.default.json({ limit: '50mb' }));
+app.use(express_1.default.urlencoded({ limit: '50mb', extended: true }));
 // Routes
 app.use('/api', auth_1.default);
 app.use('/api/dashboard', dashboard_1.default);

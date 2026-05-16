@@ -95,6 +95,9 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
 
       if (mounted) {
         setState(() => _result = data);
+        if ((data['masteredSkills'] as List?)?.isNotEmpty == true) {
+          _showMasteryConfirmationDialog(List<String>.from(data['masteredSkills']));
+        }
       }
     } catch (e) {
       _showError(e.toString());
@@ -124,6 +127,9 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
 
       if (mounted) {
         setState(() => _result = data);
+        if ((data['masteredSkills'] as List?)?.isNotEmpty == true) {
+          _showMasteryConfirmationDialog(List<String>.from(data['masteredSkills']));
+        }
       }
     } catch (e) {
       _showError(e.toString());
@@ -139,14 +145,75 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.redAccent));
   }
 
+  void _showMasteryConfirmationDialog(List<String> masteredSkills) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: Text('Skills Proven!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('We found evidence for these skills in your portfolio. Mark them as mastered in your checklist?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7))),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: masteredSkills.map((s) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF13B5EA).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF13B5EA).withValues(alpha: 0.5)),
+                ),
+                child: Text(s, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 13)),
+              )).toList(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx), 
+            child: Text('Not Now', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.54)))
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _confirmMastery(masteredSkills);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF13B5EA), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            child: const Text('Confirm Mastery', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          )
+        ],
+      )
+    );
+  }
+
+  Future<void> _confirmMastery(List<String> skills) async {
+    setState(() => _isAnalyzing = true);
+    try {
+      final session = UserSession.instance;
+      await ApiService.instance.confirmMastery(userId: session.userId, skillNames: skills, token: session.token);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skills marked as mastered!'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _isAnalyzing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Stack(
-      children: [
-        SafeArea(
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -258,28 +325,7 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
                     title: "Actionable Feedback", icon: Icons.edit_document, color: Colors.greenAccent,
                     content: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: (((_result!['cvFeedback'] as List?) ?? []).map((fb) => Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: theme.scaffoldBackgroundColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.2)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.tips_and_updates_outlined, color: Colors.greenAccent, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                fb.toString().replaceAll('•', '').trim(),
-                                style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.7), height: 1.5),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )).toList()),
+                      children: _buildFeedbackWidgets(theme),
                     ),
                   ),
                   const SizedBox(height: 40),
@@ -288,8 +334,9 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
             ),
           ),
         ),
-        if (_isAnalyzing) const LoadingOverlay(),
-      ],
+          if (_isAnalyzing) const LoadingOverlay(),
+        ],
+      ),
     );
   }
 
@@ -316,6 +363,71 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
           ),
           const SizedBox(height: 16),
           content,
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildFeedbackWidgets(ThemeData theme) {
+    final feedback = _result!['cvFeedback'];
+    if (feedback == null) return [const Text('No feedback provided.')];
+
+    if (feedback is Map) {
+      final strengths = feedback['strengths'] as List? ?? [];
+      final weaknesses = feedback['weaknesses'] as List? ?? [];
+      final improvements = feedback['improvements'] as List? ?? [];
+
+      return [
+        if (strengths.isNotEmpty) _buildFeedbackSection("Kelebihan", strengths, Colors.greenAccent, Icons.thumb_up_alt_outlined, theme),
+        if (weaknesses.isNotEmpty) _buildFeedbackSection("Kekurangan", weaknesses, Colors.redAccent, Icons.thumb_down_alt_outlined, theme),
+        if (improvements.isNotEmpty) _buildFeedbackSection("Hal yang Perlu Ditingkatkan", improvements, Colors.orangeAccent, Icons.trending_up, theme),
+      ];
+    } else if (feedback is List) {
+      return feedback.map((fb) => _buildFeedbackItem(fb.toString(), Colors.blueAccent, Icons.tips_and_updates_outlined, theme)).toList();
+    }
+    return [];
+  }
+
+  Widget _buildFeedbackSection(String title, List items, Color color, IconData icon, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12, top: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)),
+            ],
+          ),
+        ),
+        ...items.map((item) => _buildFeedbackItem(item.toString(), color, icon, theme)),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildFeedbackItem(String text, Color color, IconData icon, ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text.replaceAll('•', '').trim(),
+              style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface.withValues(alpha: 0.7), height: 1.5),
+            ),
+          ),
         ],
       ),
     );

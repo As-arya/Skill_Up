@@ -12,7 +12,7 @@ describe('Evidence-Based Scoring Prompt Builder', () => {
 
     expect(prompt).toContain('React');
     expect(prompt).toContain('E-commerce App');
-    expect(prompt).toContain('Calculate skill proficiency based on Evidence');
+    expect(prompt).toContain('Scoring Rules:');
     expect(prompt).toContain('CV Claim: Max 40%');
     expect(prompt).toContain('Project Evidence: Up to 40%');
     expect(prompt).toContain('Complexity/Depth: Up to 20%');

@@ -81,32 +81,34 @@ async function main() {
       description:
         "Full-stack e-commerce solution with React, Node.js, and PostgreSQL. Features include user authentication, shopping cart, and payment integration.",
       tags: JSON.stringify(["React", "Node.js", "PostgreSQL", "Stripe"]),
-      codeUrl: "https://github.com/alex/ecommerce",
-      demoUrl: "https://ecommerce-demo.vercel.app",
+      links: [
+        { type: "GitHub", url: "https://github.com/alex/ecommerce" },
+        { type: "Demo", url: "https://ecommerce-demo.vercel.app" },
+      ],
     },
     {
       title: "Task Management App",
       description:
         "Real-time collaborative task manager built with React and Firebase. Supports team workspaces and notifications.",
       tags: JSON.stringify(["React", "Firebase", "Tailwind CSS"]),
-      codeUrl: "https://github.com/alex/taskmanager",
-      demoUrl: "https://taskmanager-demo.vercel.app",
+      links: [
+        { type: "GitHub", url: "https://github.com/alex/taskmanager" },
+        { type: "Demo", url: "https://taskmanager-demo.vercel.app" },
+      ],
     },
     {
       title: "Weather Dashboard",
       description:
         "Weather forecasting dashboard using OpenWeather API with interactive charts and location-based predictions.",
       tags: JSON.stringify(["TypeScript", "Next.js", "Chart.js", "API"]),
-      codeUrl: "https://github.com/alex/weather",
-      demoUrl: null,
+      links: [{ type: "GitHub", url: "https://github.com/alex/weather" }],
     },
     {
       title: "Portfolio Website",
       description:
         "Personal portfolio showcasing projects and skills with smooth animations and responsive design.",
       tags: JSON.stringify(["React", "Motion", "Tailwind CSS"]),
-      codeUrl: null,
-      demoUrl: "https://alex-portfolio.vercel.app",
+      links: [{ type: "Demo", url: "https://alex-portfolio.vercel.app" }],
     },
   ];
 
@@ -115,7 +117,15 @@ async function main() {
 
   for (const project of projects) {
     await prisma.project.create({
-      data: { userId: user.id, ...project },
+      data: {
+        userId: user.id,
+        title: project.title,
+        description: project.description,
+        tags: project.tags,
+        links: {
+          create: project.links,
+        },
+      },
     });
   }
 

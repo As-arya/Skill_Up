@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'login_page.dart';
+import 'main_shell.dart';
 import 'notification_service.dart';
+import 'user_session.dart';
+import 'api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,11 +46,70 @@ class AppColors {
   static const darkMuted = Color(0xFF475569);
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isLoading = true;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    final restored = await UserSession.instance.restore();
+    if (!restored) {
+      if (mounted) setState(() { _isLoggedIn = false; _isLoading = false; });
+      return;
+    }
+
+    // Validate the stored token against the backend.
+    // If the server returns 401/403, the token is expired — force re-login.
+    try {
+      await ApiService.instance.getDashboard(
+        UserSession.instance.userId,
+        UserSession.instance.token,
+      );
+      if (mounted) setState(() { _isLoggedIn = true; _isLoading = false; });
+    } catch (e) {
+      // Token invalid or server unreachable.
+      // If server is unreachable we still let the user in (offline tolerance).
+      // Only clear session on explicit auth errors (401/403).
+      final msg = e.toString();
+      final isAuthError = msg.contains('401') || msg.contains('403') ||
+          msg.contains('Unauthorized') || msg.contains('Forbidden');
+      if (isAuthError) {
+        await UserSession.instance.clear();
+        if (mounted) setState(() { _isLoggedIn = false; _isLoading = false; });
+      } else {
+        // Network error — trust the stored session
+        if (mounted) setState(() { _isLoggedIn = true; _isLoading = false; });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return MaterialApp(
+        title: 'SkillUp',
+        debugShowCheckedModeBanner: false,
+        themeMode: ThemeMode.dark,
+        home: const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, currentMode, child) {
@@ -138,7 +200,7 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
           ),
 
-          home: const LoginPage(),
+          home: _isLoggedIn ? const MainShell() : const LoginPage(),
         );
       },
     );

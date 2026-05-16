@@ -5,6 +5,7 @@ import 'main_shell.dart';
 import 'loading_overlay.dart';
 import 'api_service.dart';
 import 'user_session.dart';
+import 'coming_soon_dialog.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -45,6 +46,20 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    if (email.contains(' ') || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid email format (no spaces, must contain @)'), backgroundColor: Colors.redAccent)
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters'), backgroundColor: Colors.redAccent)
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -55,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (data['user'] != null) {
         // Save session for use across all pages
-        UserSession.instance.set(
+        await UserSession.instance.set(
           id: data['user']['id'],
           name: data['user']['name'],
           email: data['user']['email'],
@@ -102,31 +117,10 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 40),
 
                   Center(
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF13B5EA), Color(0xFF2C6CFF)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF13B5EA,
-                            ).withValues(alpha: 0.3),
-                            blurRadius: 24,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.bolt,
-                        color: Colors.white,
-                        size: 44,
-                      ),
+                    child: Image.asset(
+                      'assets/skillup_logo.png',
+                      width: 120,
+                      height: 120,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -242,7 +236,12 @@ class _LoginPageState extends State<LoginPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => const ComingSoonDialog(),
+                        );
+                      },
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
                         minimumSize: Size.zero,

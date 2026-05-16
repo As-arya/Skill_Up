@@ -13,6 +13,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (email.includes(' ') || !email.includes('@')) {
+      res.status(400).json({ error: 'Invalid email format' });
+      return;
+    }
+
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       res.status(401).json({ error: 'Invalid email or password' });
@@ -44,6 +49,21 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required' });
+      return;
+    }
+
+    if (name.trim().length <= 3) {
+      res.status(400).json({ error: 'Name must be more than 3 characters' });
+      return;
+    }
+
+    if (email.includes(' ') || !email.includes('@')) {
+      res.status(400).json({ error: 'Invalid email format (no spaces, must contain @)' });
+      return;
+    }
+
+    if (password.length < 6) {
+      res.status(400).json({ error: 'Password must be at least 6 characters' });
       return;
     }
 

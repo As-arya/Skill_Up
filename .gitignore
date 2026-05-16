@@ -1,3 +1,9 @@
+# Kiro IDE workspace files
+.kiro/
+
+# Scratch / backup files
+old_code.txt
+
 # Secrets
 .env
 .env.local
@@ -11,5 +17,6 @@ node_modules/
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
+.kotlin/
 
 .DS_Store

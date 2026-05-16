@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'user_session.dart';
 import 'login_page.dart';
 import 'main.dart'; // import to access themeNotifier
 import 'notification_service.dart';
+import 'coming_soon_dialog.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -17,11 +21,52 @@ class _ProfilePageState extends State<ProfilePage> {
   TimeOfDay _notificationTime = const TimeOfDay(hour: 19, minute: 0);
   final List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   final Set<String> _selectedDays = {'Mon', 'Wed', 'Fri'};
+  String? _profileImagePath;
 
   @override
   void initState() {
     super.initState();
     _isDarkMode = themeNotifier.value == ThemeMode.dark;
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _profileImagePath = prefs.getString('profile_image_${UserSession.instance.userId}');
+      _notificationsEnabled = prefs.getBool('notifications_enabled_${UserSession.instance.userId}') ?? false;
+      
+      final hour = prefs.getInt('notification_hour_${UserSession.instance.userId}') ?? 19;
+      final minute = prefs.getInt('notification_minute_${UserSession.instance.userId}') ?? 0;
+      _notificationTime = TimeOfDay(hour: hour, minute: minute);
+      
+      final savedDays = prefs.getStringList('notification_days_${UserSession.instance.userId}');
+      if (savedDays != null) {
+        _selectedDays.clear();
+        _selectedDays.addAll(savedDays);
+      }
+    });
+  }
+
+  Future<void> _saveNotificationSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled_${UserSession.instance.userId}', _notificationsEnabled);
+    await prefs.setInt('notification_hour_${UserSession.instance.userId}', _notificationTime.hour);
+    await prefs.setInt('notification_minute_${UserSession.instance.userId}', _notificationTime.minute);
+    await prefs.setStringList('notification_days_${UserSession.instance.userId}', _selectedDays.toList());
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('profile_image_${UserSession.instance.userId}', pickedFile.path);
+      setState(() {
+        _profileImagePath = pickedFile.path;
+      });
+    }
   }
 
   void _logout() {
@@ -61,15 +106,33 @@ class _ProfilePageState extends State<ProfilePage> {
             Center(
               child: Column(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: theme.colorScheme.primary, width: 3),
-                    ),
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundColor: theme.colorScheme.surface,
-                      backgroundImage: const NetworkImage('https://i.pravatar.cc/300?img=11'), // Placeholder profile photo
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: theme.colorScheme.primary, width: 3),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: theme.colorScheme.surface,
+                            backgroundImage: _profileImagePath != null && File(_profileImagePath!).existsSync()
+                                ? FileImage(File(_profileImagePath!)) as ImageProvider
+                                : const AssetImage('assets/placeholder-profile.png'),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -113,24 +176,42 @@ class _ProfilePageState extends State<ProfilePage> {
                     icon: Icons.notifications,
                     title: 'Learning Reminders',
                     value: _notificationsEnabled,
-                    onChanged: (val) {
-                      setState(() {
-                        _notificationsEnabled = val;
-                        if (val) {
-                          NotificationService().scheduleLearningReminder(
-                            id: 1,
-                            title: 'Time to Learn!',
-                            body: 'Your learning session for today is starting soon.',
-                            hour: _notificationTime.hour,
-                            minute: _notificationTime.minute,
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
+                    onChanged: (val) async {
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+                      if (val) {
+                        final hasPermission = await NotificationService().requestPermission();
+                        if (!hasPermission) {
+                          if (mounted) {
+                            scaffoldMessenger.showSnackBar(
+                              const SnackBar(content: Text('Notification permission is required')),
+                            );
+                          }
+                          return;
+                        }
+                        setState(() {
+                          _notificationsEnabled = true;
+                        });
+                        await _saveNotificationSettings();
+                        await NotificationService().showImmediateTestNotification();
+                        await NotificationService().scheduleLearningReminder(
+                          id: 1,
+                          title: 'Time to Learn!',
+                          body: 'Your learning session for today is starting soon.',
+                          hour: _notificationTime.hour,
+                          minute: _notificationTime.minute,
+                        );
+                        if (mounted) {
+                          scaffoldMessenger.showSnackBar(
                             const SnackBar(content: Text('Learning reminders enabled')),
                           );
-                        } else {
-                          NotificationService().cancelAllNotifications();
                         }
-                      });
+                      } else {
+                        setState(() {
+                          _notificationsEnabled = false;
+                        });
+                        await _saveNotificationSettings();
+                        await NotificationService().cancelAllNotifications();
+                      }
                     },
                     color: Colors.orangeAccent,
                   ),
@@ -143,21 +224,21 @@ class _ProfilePageState extends State<ProfilePage> {
                     icon: Icons.language,
                     title: 'Language',
                     trailing: Text('English', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.54))),
-                    onTap: () {},
+                    onTap: () => showDialog(context: context, builder: (_) => const ComingSoonDialog()),
                     color: Colors.blueAccent,
                   ),
                   _buildDivider(),
                   _buildSettingItem(
                     icon: Icons.security,
                     title: 'Privacy & Security',
-                    onTap: () {},
+                    onTap: () => showDialog(context: context, builder: (_) => const ComingSoonDialog()),
                     color: Colors.greenAccent,
                   ),
                   _buildDivider(),
                   _buildSettingItem(
                     icon: Icons.help_outline,
                     title: 'Help & Support',
-                    onTap: () {},
+                    onTap: () => showDialog(context: context, builder: (_) => const ComingSoonDialog()),
                     color: Colors.tealAccent,
                   ),
                 ],
@@ -203,7 +284,19 @@ class _ProfilePageState extends State<ProfilePage> {
               TextButton(
                 onPressed: () async {
                   final time = await showTimePicker(context: context, initialTime: _notificationTime);
-                  if (time != null) setState(() => _notificationTime = time);
+                  if (time != null) {
+                    setState(() => _notificationTime = time);
+                    await _saveNotificationSettings();
+                    if (_notificationsEnabled) {
+                      await NotificationService().scheduleLearningReminder(
+                        id: 1,
+                        title: 'Time to Learn!',
+                        body: 'Your learning session for today is starting soon.',
+                        hour: _notificationTime.hour,
+                        minute: _notificationTime.minute,
+                      );
+                    }
+                  }
                 },
                 child: Text(_notificationTime.format(context), style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
@@ -218,7 +311,7 @@ class _ProfilePageState extends State<ProfilePage> {
             children: _days.map((day) {
               final isSelected = _selectedDays.contains(day);
               return GestureDetector(
-                onTap: () {
+                onTap: () async {
                   setState(() {
                     if (isSelected) {
                       _selectedDays.remove(day);
@@ -226,6 +319,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       _selectedDays.add(day);
                     }
                   });
+                  await _saveNotificationSettings();
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -244,6 +338,8 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+
+
 
   Widget _buildSettingItem({required IconData icon, required String title, Widget? trailing, required VoidCallback onTap, required Color color}) {
     final theme = Theme.of(context);
