@@ -8,7 +8,8 @@ import 'api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService().init();
+  // Init notification in background — don't block app startup
+  NotificationService().init().catchError((_) {});
   runApp(const MyApp());
 }
 
@@ -71,17 +72,15 @@ class _MyAppState extends State<MyApp> {
     }
 
     // Validate the stored token against the backend.
-    // If the server returns 401/403, the token is expired — force re-login.
+    // Use a short timeout (5s) so startup doesn't hang on cold start.
     try {
       await ApiService.instance.getDashboard(
         UserSession.instance.userId,
         UserSession.instance.token,
-      );
+      ).timeout(const Duration(seconds: 5));
       if (mounted) setState(() { _isLoggedIn = true; _isLoading = false; });
     } catch (e) {
-      // Token invalid or server unreachable.
-      // If server is unreachable we still let the user in (offline tolerance).
-      // Only clear session on explicit auth errors (401/403).
+      // Token invalid, server unreachable, or timeout — handle gracefully.
       final msg = e.toString();
       final isAuthError = msg.contains('401') || msg.contains('403') ||
           msg.contains('Unauthorized') || msg.contains('Forbidden');
@@ -89,7 +88,7 @@ class _MyAppState extends State<MyApp> {
         await UserSession.instance.clear();
         if (mounted) setState(() { _isLoggedIn = false; _isLoading = false; });
       } else {
-        // Network error — trust the stored session
+        // Network error or timeout — trust the stored session, let user in
         if (mounted) setState(() { _isLoggedIn = true; _isLoading = false; });
       }
     }

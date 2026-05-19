@@ -11,7 +11,7 @@ class ApiService {
   // For production build: flutter run --dart-define=API_BASE_URL=https://skillup-backend.onrender.com/api
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000/api',
+    defaultValue: 'https://skillup-production-f207.up.railway.app/api',
   );
 
   Map<String, String> _headers(String? token) => {
