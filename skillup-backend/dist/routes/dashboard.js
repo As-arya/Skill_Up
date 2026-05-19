@@ -4,6 +4,7 @@ const express_1 = require("express");
 const prisma_1 = require("../lib/prisma");
 const auth_1 = require("../middlewares/auth");
 const router = (0, express_1.Router)();
+// ─── GET /api/dashboard ──────────────────────────────────────────
 router.get('/', auth_1.requireAuth, async (req, res) => {
     try {
         const userId = Number(req.query.userId);
@@ -19,13 +20,15 @@ router.get('/', auth_1.requireAuth, async (req, res) => {
             prisma_1.prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
             prisma_1.prisma.skill.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
             prisma_1.prisma.project.count({ where: { userId } }),
-            prisma_1.prisma.learningTarget.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+            prisma_1.prisma.learningTarget.findFirst({
+                where: { userId, isCompleted: false },
+                orderBy: { createdAt: 'desc' }
+            }),
         ]);
         const targetRoleName = target ? target.skillName : null;
         const totalSkills = allSkills.length;
         const masteredSkills = allSkills.filter(s => s.isChecked);
         const acquiredCount = masteredSkills.length;
-        // Real percentage: (mastered / total) * 100
         let jobReadiness = 0;
         let skillGap = 0;
         let skillsToMaster = 0;
@@ -35,7 +38,6 @@ router.get('/', auth_1.requireAuth, async (req, res) => {
             skillsToMaster = totalSkills - acquiredCount;
         }
         else if (targetRoleName) {
-            // User has a target but no skills tracked yet
             jobReadiness = 0;
             skillGap = 100;
             skillsToMaster = 0;
@@ -57,8 +59,37 @@ router.get('/', auth_1.requireAuth, async (req, res) => {
             mastered: data.mastered,
             percentage: data.total > 0 ? Math.round((data.mastered / data.total) * 100) : 0,
         }));
-        // Top 5 mastered skills for display
         const topSkills = masteredSkills.slice(0, 5).map(s => ({ name: s.name, mastered: true }));
+        // ─── Daily Goal: sub-skill based ────────────────────────────
+        // Find skills in the category matching the learning target's skillName.
+        // If no skills exist in that category, return null (card is hidden).
+        let dailyGoalObj = null;
+        if (target) {
+            const categorySkills = allSkills.filter(s => (s.category || 'General').toLowerCase() === target.skillName.toLowerCase());
+            if (categorySkills.length > 0) {
+                const masteredInCategory = categorySkills.filter(s => s.isChecked).length;
+                const progressPercent = categorySkills.length > 0
+                    ? masteredInCategory / categorySkills.length
+                    : 0;
+                // Pick up to 3 sub-skills to highlight: prioritise unchecked first, then checked
+                const unchecked = categorySkills.filter(s => !s.isChecked);
+                const checked = categorySkills.filter(s => s.isChecked);
+                const featured = [...unchecked, ...checked].slice(0, 3);
+                dailyGoalObj = {
+                    targetId: target.id,
+                    categoryName: target.skillName,
+                    totalSubSkills: categorySkills.length,
+                    mastered: masteredInCategory,
+                    progressPercent,
+                    subSkills: featured.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        isChecked: s.isChecked,
+                    })),
+                };
+            }
+            // else: dailyGoalObj stays null → card hidden on frontend
+        }
         res.status(200).json({
             userName: user?.name || 'User',
             targetRole: targetRoleName || null,
@@ -68,11 +99,50 @@ router.get('/', auth_1.requireAuth, async (req, res) => {
             projectCount: projects,
             topSkills,
             groupedSkills,
+            dailyGoal: dailyGoalObj,
         });
     }
     catch (error) {
         console.error('Dashboard Error:', error);
         res.status(500).json({ error: 'Failed to fetch dashboard data.' });
+    }
+});
+// ─── GET /api/dashboard/categories ──────────────────────────────
+// Returns all skill categories the user has, with completion stats.
+// Used by the "Set Goal" picker on the home page.
+router.get('/categories', auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = Number(req.query.userId);
+        if (!userId || isNaN(userId)) {
+            res.status(400).json({ error: 'Valid userId query parameter is required' });
+            return;
+        }
+        if (req.user?.userId !== userId) {
+            res.status(403).json({ error: 'Forbidden: Access denied' });
+            return;
+        }
+        const skills = await prisma_1.prisma.skill.findMany({ where: { userId } });
+        const catMap = new Map();
+        for (const s of skills) {
+            const cat = s.category || 'General';
+            if (!catMap.has(cat))
+                catMap.set(cat, { total: 0, mastered: 0 });
+            const e = catMap.get(cat);
+            e.total++;
+            if (s.isChecked)
+                e.mastered++;
+        }
+        const categories = Array.from(catMap.entries()).map(([name, d]) => ({
+            name,
+            total: d.total,
+            mastered: d.mastered,
+            percentage: d.total > 0 ? Math.round((d.mastered / d.total) * 100) : 0,
+        }));
+        res.status(200).json({ categories });
+    }
+    catch (error) {
+        console.error('Dashboard Categories Error:', error);
+        res.status(500).json({ error: 'Failed to fetch categories.' });
     }
 });
 exports.default = router;

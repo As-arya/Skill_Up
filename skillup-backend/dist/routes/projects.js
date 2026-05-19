@@ -85,6 +85,95 @@ router.post('/', auth_1.requireAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to create project.' });
     }
 });
+// PUT /:id - Update a project
+router.put('/:id', auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id: idParam } = req.params;
+        const id = Number(idParam);
+        if (!id || isNaN(id)) {
+            res.status(400).json({ error: 'Valid project id is required' });
+            return;
+        }
+        const { title, description, tags, links } = req.body;
+        if (!title || !description || !tags || !Array.isArray(tags)) {
+            res.status(400).json({ error: 'Missing required fields or invalid tags format' });
+            return;
+        }
+        // Check if project exists and validate ownership
+        const existingProject = await prisma_1.prisma.project.findUnique({
+            where: { id },
+        });
+        if (!existingProject) {
+            res.status(404).json({ error: 'Project not found' });
+            return;
+        }
+        if (existingProject.userId !== req.user?.userId) {
+            res.status(403).json({ error: 'Forbidden: Access denied' });
+            return;
+        }
+        // Delete existing links
+        await prisma_1.prisma.projectLink.deleteMany({
+            where: { projectId: id },
+        });
+        // Update project and create new links
+        const project = await prisma_1.prisma.project.update({
+            where: { id },
+            data: {
+                title,
+                description,
+                tags: JSON.stringify(tags),
+                links: {
+                    create: Array.isArray(links) ? links.map((link) => ({
+                        type: link.type || 'Link',
+                        url: link.url || ''
+                    })) : []
+                }
+            },
+            include: { links: true },
+        });
+        const formattedProject = {
+            ...project,
+            tags: parseTagsRobustly(project.tags),
+        };
+        res.status(200).json({ project: formattedProject });
+    }
+    catch (error) {
+        console.error('Project PUT Error:', error);
+        res.status(500).json({ error: 'Failed to update project.' });
+    }
+});
+// DELETE /:id - Delete a project
+router.delete('/:id', auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id: idParam } = req.params;
+        const id = Number(idParam);
+        if (!id || isNaN(id)) {
+            res.status(400).json({ error: 'Valid project id is required' });
+            return;
+        }
+        // Check if project exists and validate ownership
+        const existingProject = await prisma_1.prisma.project.findUnique({
+            where: { id },
+        });
+        if (!existingProject) {
+            res.status(404).json({ error: 'Project not found' });
+            return;
+        }
+        if (existingProject.userId !== req.user?.userId) {
+            res.status(403).json({ error: 'Forbidden: Access denied' });
+            return;
+        }
+        // Delete project (cascade deletes links)
+        await prisma_1.prisma.project.delete({
+            where: { id },
+        });
+        res.status(200).json({ message: 'Project deleted' });
+    }
+    catch (error) {
+        console.error('Project DELETE Error:', error);
+        res.status(500).json({ error: 'Failed to delete project.' });
+    }
+});
 router.get('/fetch-readme', auth_1.requireAuth, async (req, res) => {
     try {
         const { repoUrl } = req.query;

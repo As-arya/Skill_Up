@@ -1,6 +1,6 @@
 /**
- * Production migration script for PostgreSQL (Supabase).
- * Runs on Render during startCommand: npx tsx scripts/migrate-prod.ts
+ * Production migration script for PostgreSQL (Neon).
+ * Runs during Railway build via: npx tsx scripts/migrate-prod.ts
  *
  * Creates all tables if they don't exist yet.
  * Safe to run multiple times (idempotent).
@@ -10,13 +10,15 @@ import "dotenv/config";
 import { Pool } from "pg";
 
 const sql = `
+CREATE SCHEMA IF NOT EXISTS "public";
+
 CREATE TABLE IF NOT EXISTS "User" (
   "id"         SERIAL PRIMARY KEY,
   "name"       TEXT NOT NULL,
   "email"      TEXT NOT NULL UNIQUE,
   "university" TEXT,
   "password"   TEXT NOT NULL,
-  "createdAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS "Skill" (
@@ -25,7 +27,7 @@ CREATE TABLE IF NOT EXISTS "Skill" (
   "name"      TEXT NOT NULL,
   "category"  TEXT NOT NULL,
   "isChecked" BOOLEAN NOT NULL DEFAULT false,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE ("userId", "name")
 );
 
@@ -35,8 +37,8 @@ CREATE TABLE IF NOT EXISTS "Project" (
   "title"       TEXT NOT NULL,
   "description" TEXT NOT NULL,
   "tags"        TEXT NOT NULL,
-  "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "ProjectLink" (
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS "LearningTarget" (
   "targetMinutes" INTEGER NOT NULL DEFAULT 30,
   "deadline"      TEXT,
   "isCompleted"   BOOLEAN NOT NULL DEFAULT false,
-  "createdAt"     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 `;
 

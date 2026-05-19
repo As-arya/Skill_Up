@@ -30,6 +30,7 @@ app.use('/api', ai_1.default);
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
-app.listen(port, () => {
-    console.log(`[server]: Server is running at http://localhost:${port}`);
+app.listen(Number(port), '0.0.0.0', () => {
+    console.log(`[server]: Server is running at http://0.0.0.0:${port}`);
+    console.log(`[server]: Accessible from Android emulator at http://10.0.2.2:${port}`);
 });

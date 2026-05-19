@@ -232,7 +232,7 @@ router.post('/cv-check', requireAuth, async (req: AuthRequest, res: Response): P
     const raw = await callHybridAI({
       prompt: `You are a professional CV reviewer for ALL industries and professions.
 
-CRITICAL RULE: Evaluate this CV ONLY within the context of its own target field and role. 
+CRITICAL RULE: Evaluate this CV ONLY within the context of its own target field and role.
 - If the CV is for a marketing role, give marketing-specific feedback.
 - If the CV is for a finance role, give finance-specific feedback.
 - If the CV is for a healthcare role, give healthcare-specific feedback.

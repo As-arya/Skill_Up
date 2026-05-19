@@ -4,7 +4,6 @@ import { Pool } from "pg";
 
 // Railway/Production: Always use PostgreSQL.
 // DATABASE_URL must be set in Railway environment variables.
-// For local dev, run with: npm run dev (uses separate local config)
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
