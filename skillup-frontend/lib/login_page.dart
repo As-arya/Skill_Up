@@ -103,6 +103,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1120),
       body: Stack(
+        fit: StackFit.expand,
         children: [
           // --- Konten utama halaman login ---
           SafeArea(

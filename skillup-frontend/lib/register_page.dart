@@ -168,6 +168,7 @@ class _RegisterPageState extends State<RegisterPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1120),
       body: Stack(
+        fit: StackFit.expand,
         children: [
           SafeArea(
             child: SingleChildScrollView(

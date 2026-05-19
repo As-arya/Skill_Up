@@ -1,12 +1,13 @@
 import { Router, Response } from 'express';
 import { requireAuth, AuthRequest } from '../middlewares/auth';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { prisma } from '../lib/prisma';
 import * as crypto from 'crypto';
 
 const router = Router();
 
-// ─── Lazy-init Gemini ──────────────────────────────────────
+// ─── Lazy-init Gemini (image only) ────────────────────────
 let _genAI: GoogleGenerativeAI | null = null;
 function getGenAI(): GoogleGenerativeAI {
   if (!_genAI) {
@@ -17,13 +18,24 @@ function getGenAI(): GoogleGenerativeAI {
   return _genAI;
 }
 
+// ─── Lazy-init Groq (text only) ───────────────────────────
+let _groq: Groq | null = null;
+function getGroq(): Groq {
+  if (!_groq) {
+    const key = process.env.GROQ_API_KEY || '';
+    console.log('[AI] Initializing Groq with key:', key ? `${key.substring(0, 8)}...` : 'MISSING!');
+    _groq = new Groq({ apiKey: key });
+  }
+  return _groq;
+}
+
 // ─── In-Memory Cache ───────────────────────────────────────
 interface CacheEntry {
   data: string;
   timestamp: number;
 }
 const aiCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function getCacheKey(endpoint: string, body: Record<string, any>): string {
   const payload = JSON.stringify({ endpoint, ...body });
@@ -75,52 +87,137 @@ export function extractJSON(text: string): any {
   return null;
 }
 
-// ─── Gemini Logic (Multimodal) ──────────────────────────────
-async function callGeminiWithRetry(prompt: string, imageBase64?: string, mimeType?: string, cacheKey?: string, maxRetries = 3): Promise<string> {
-  const genAI = getGenAI();
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-  const BASE_DELAY_MS = 2000;
+// ─── Request Queue (prevent concurrent AI calls) ───────────
+let _aiQueueRunning = false;
+const _aiQueue: Array<() => void> = [];
 
-  const parts: any[] = [{ text: prompt }];
-  if (imageBase64 && mimeType) {
-    parts.push({ inlineData: { data: imageBase64, mimeType } });
-  }
+function enqueueAI(): Promise<void> {
+  return new Promise(resolve => {
+    _aiQueue.push(resolve);
+    _processQueue();
+  });
+}
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+function releaseAI(): void {
+  _aiQueueRunning = false;
+  _processQueue();
+}
+
+function _processQueue(): void {
+  if (_aiQueueRunning || _aiQueue.length === 0) return;
+  _aiQueueRunning = true;
+  const next = _aiQueue.shift()!;
+  next();
+}
+
+// ─── Groq (text-only, fast) ────────────────────────────────
+const GROQ_MODELS = ['llama-3.3-70b-versatile', 'llama3-70b-8192'];
+
+async function callGroq(prompt: string, cacheKey?: string): Promise<string> {
+  const groq = getGroq();
+  let lastError: any;
+
+  for (const model of GROQ_MODELS) {
     try {
-      const result = await model.generateContent(parts);
-      const text = result.response.text();
+      console.log(`[Groq] Trying model: ${model}`);
+      const completion = await groq.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 2048,
+      });
+      const text = completion.choices[0]?.message?.content || '';
       if (cacheKey) setCacheResult(cacheKey, text);
+      console.log(`[Groq] Success with model: ${model}`);
       return text;
     } catch (err: any) {
-      const isRetryable = err?.status === 429 || err?.status === 503;
-      if (isRetryable && attempt < maxRetries) {
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * 1000;
-        console.log(`[Gemini] ${err.status} error. Retrying in ${(delay / 1000).toFixed(1)}s...`);
-        await new Promise(r => setTimeout(r, delay));
+      lastError = err;
+      const status = err?.status || err?.error?.status;
+      if (status === 429) {
+        console.warn(`[Groq] Rate limited on ${model}, trying next...`);
+        continue;
+      }
+      if (status === 503 || status === 404) {
+        console.warn(`[Groq] Model ${model} unavailable (${status}), trying next...`);
         continue;
       }
       throw err;
     }
   }
-  throw new Error('Gemini max retries exceeded');
+  throw lastError || new Error('All Groq models failed');
 }
 
-// ─── AI Routing ────────────────────────────────────────────
-export async function callHybridAI(params: { prompt: string, imageBase64?: string, mimeType?: string, cacheKey?: string }): Promise<string> {
-  if (params.cacheKey) {
-    const cached = getCachedResult(params.cacheKey);
+// ─── Gemini (image/multimodal only) ───────────────────────
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+
+async function callGemini(prompt: string, imageBase64: string, mimeType: string, cacheKey?: string): Promise<string> {
+  const genAI = getGenAI();
+  const parts: any[] = [{ text: prompt }, { inlineData: { data: imageBase64, mimeType } }];
+  let lastError: any;
+
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      console.log(`[Gemini] Trying model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(parts);
+      const text = result.response.text();
+      if (cacheKey) setCacheResult(cacheKey, text);
+      console.log(`[Gemini] Success with model: ${modelName}`);
+      return text;
+    } catch (err: any) {
+      lastError = err;
+      const status = err?.status;
+      if (status === 429 || status === 404 || status === 400 || status === 503) {
+        console.warn(`[Gemini] Model ${modelName} failed (${status}), trying next...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError || new Error('All Gemini models failed');
+}
+
+// ─── Hybrid AI Router ──────────────────────────────────────
+// Text → Groq (fast, generous quota)
+// Image → Gemini (multimodal support)
+export async function callHybridAI(params: {
+  prompt: string;
+  imageBase64?: string;
+  mimeType?: string;
+  cacheKey?: string;
+}): Promise<string> {
+  const { prompt, imageBase64, mimeType, cacheKey } = params;
+
+  // Check cache first
+  if (cacheKey) {
+    const cached = getCachedResult(cacheKey);
     if (cached) return cached;
   }
 
-  console.log(`[AI] Using Gemini (${params.imageBase64 ? 'Multimodal' : 'Text'})`);
-  return callGeminiWithRetry(params.prompt, params.imageBase64, params.mimeType, params.cacheKey);
+  await enqueueAI();
+  try {
+    if (imageBase64 && mimeType) {
+      console.log('[AI] Routing to Gemini (image input)');
+      return await callGemini(prompt, imageBase64, mimeType, cacheKey);
+    } else {
+      console.log('[AI] Routing to Groq (text input)');
+      return await callGroq(prompt, cacheKey);
+    }
+  } finally {
+    releaseAI();
+  }
 }
 
 function getErrorMessage(error: any): string {
-  if (error?.status === 401 || error?.status === 403) return 'API key invalid. Check .env configuration.';
-  if (error?.status === 429) return 'AI service is busy. Please try again in a few seconds.';
-  return 'AI analysis failed. Please try again later.';
+  const status = error?.status;
+  const msg = error?.message || '';
+  if (status === 401 || status === 403) return 'API key invalid. Check .env configuration.';
+  if (status === 429) return 'AI service is busy. Please try again in a few seconds.';
+  if (status === 404 || msg.includes('not found') || msg.includes('deprecated')) return 'AI model unavailable. Please try again later.';
+  if (status === 400) return 'Invalid request to AI service. Please try again.';
+  if (msg.includes('timeout') || msg.includes('ETIMEDOUT')) return 'AI request timed out. Please try again.';
+  console.error('[AI] Unhandled error:', status, msg);
+  return `AI analysis failed (${status || 'unknown'}). Please try again later.`;
 }
 
 // ─── Endpoints ──────────────────────────────────────────────
@@ -131,14 +228,48 @@ router.post('/cv-check', requireAuth, async (req: AuthRequest, res: Response): P
     if (!userId || (!cvText && !cvImage)) { res.status(400).json({ error: 'userId and content are required' }); return; }
     if (req.user?.userId !== userId) { res.status(403).json({ error: 'Forbidden' }); return; }
 
-    const cacheKey = getCacheKey('cv-check', { userId, text: (cvText || '').substring(0, 200), hasImage: !!cvImage });
-    const feedback = await callHybridAI({
-      prompt: `Analyze this CV and provide constructive feedback for a software engineer role. Highlight any existing errors, typos, formatting issues, and give actionable advice on how to improve. Format your response cleanly. CV Content: ${cvText || 'Provided as image'}`,
+    const cacheKey = getCacheKey('cv-check-v4', { userId, text: (cvText || '').substring(0, 200), hasImage: !!cvImage });
+    const raw = await callHybridAI({
+      prompt: `You are a professional CV reviewer for ALL industries and professions.
+
+CRITICAL RULE: Evaluate this CV ONLY within the context of its own target field and role. 
+- If the CV is for a marketing role, give marketing-specific feedback.
+- If the CV is for a finance role, give finance-specific feedback.
+- If the CV is for a healthcare role, give healthcare-specific feedback.
+- NEVER suggest pivoting to tech, learning programming, or acquiring tech skills UNLESS the CV itself is explicitly targeting a tech role.
+- Recommendations must be relevant to the detected role only.
+
+Return this exact JSON structure:
+{
+  "detectedRole": "The specific role or field this CV targets (e.g., Brand Manager, Civil Engineer, Nurse, Marketing Manager)",
+  "overallScore": <integer 0-100 based on quality for its own field>,
+  "summary": "2-3 sentence overall assessment of the CV quality for its target role.",
+  "strengths": ["Specific strength relevant to the detected role", "Specific strength 2", "Specific strength 3"],
+  "weaknesses": ["Specific gap or weakness relevant to the detected role", "Weakness 2", "Weakness 3"],
+  "recommendations": ["Actionable improvement relevant to the detected role", "Recommendation 2", "Recommendation 3"],
+  "formattingNotes": "Brief note on formatting, length, and readability."
+}
+
+Scoring guide:
+- 80-100: Excellent CV, well-structured, strong achievements, tailored to the role
+- 60-79: Good CV with minor gaps or improvements needed
+- 40-59: Average CV, missing key elements for the target role
+- 0-39: Weak CV, significant improvements required
+
+IMPORTANT: Respond ONLY with valid JSON. No markdown, no extra text.
+
+CV Content: ${cvText || 'Provided as image'}`,
       imageBase64: cvImage,
       mimeType,
       cacheKey
     });
-    res.status(200).json({ feedback });
+
+    const parsed = extractJSON(raw);
+    if (parsed) {
+      res.status(200).json(parsed);
+    } else {
+      res.status(200).json({ detectedRole: 'Unknown', overallScore: null, summary: raw, strengths: [], weaknesses: [], recommendations: [], formattingNotes: '' });
+    }
   } catch (error: any) {
     console.error('CV Check Error:', error?.message || error);
     res.status(500).json({ error: getErrorMessage(error) });
@@ -259,12 +390,23 @@ router.post('/validate-job', requireAuth, async (req: AuthRequest, res: Response
     }
 
     const normalized = jobTitle.trim().toLowerCase();
+
+    // Check cache first to avoid redundant AI calls
+    const cacheKey = getCacheKey('validate-job', { jobTitle: normalized });
+    const cached = getCachedResult(cacheKey);
+    if (cached) {
+      console.log(`[Validation] Cache hit for: "${jobTitle}"`);
+      res.status(200).json(JSON.parse(cached));
+      return;
+    }
     
     // Quick check against known titles
     const exactMatch = KNOWN_JOB_TITLES.find(j => j.toLowerCase() === normalized);
     if (exactMatch) {
       console.log(`[Validation] Exact match found: ${exactMatch}`);
-      res.status(200).json({ valid: true, corrected: exactMatch });
+      const result = { valid: true, corrected: exactMatch };
+      setCacheResult(cacheKey, JSON.stringify(result));
+      res.status(200).json(result);
       return;
     }
 
@@ -274,11 +416,34 @@ router.post('/validate-job', requireAuth, async (req: AuthRequest, res: Response
     );
     if (fuzzyMatch) {
       console.log(`[Validation] Fuzzy match found: ${fuzzyMatch}`);
-      res.status(200).json({ valid: true, corrected: fuzzyMatch });
+      const result = { valid: true, corrected: fuzzyMatch };
+      setCacheResult(cacheKey, JSON.stringify(result));
+      res.status(200).json(result);
       return;
     }
 
-    // Use AI as fallback for creative but valid job titles
+    // Word-level partial match: if input shares 2+ words with a known title
+    const inputWords = normalized.split(/\s+/).filter((w: string) => w.length > 2);
+    const wordMatch = KNOWN_JOB_TITLES.find(j => {
+      const titleWords = j.toLowerCase().split(/\s+/);
+      const commonWords = inputWords.filter((w: string) => titleWords.includes(w));
+      return commonWords.length >= 2;
+    });
+    if (wordMatch) {
+      console.log(`[Validation] Word match found: ${wordMatch}`);
+      const result = { valid: true, corrected: wordMatch };
+      setCacheResult(cacheKey, JSON.stringify(result));
+      res.status(200).json(result);
+      return;
+    }
+
+    // Only call AI if no local match found at all
+    // Skip AI validation for short inputs that are clearly not job titles
+    if (normalized.length < 4 || /^\d+$/.test(normalized)) {
+      res.status(200).json({ valid: false, reason: 'Not a recognizable job title', suggestions: [] });
+      return;
+    }
+
     console.log(`[Validation] Calling AI fallback for: "${jobTitle}"`);
     const text = await callHybridAI({
       prompt: `Is "${jobTitle}" a valid, real job position or role in any professional field?
@@ -301,8 +466,6 @@ Respond ONLY with valid JSON. Do not include any other text.`
     // Sanitize the corrected field if it contains verbose text
     if (data && data.valid === true && data.corrected) {
       const corrected = data.corrected.toString();
-      // Extract just the job title if AI returned verbose text
-      // Pattern: "The proper/corrected job title is X, which refers to..."
       const match = corrected.match(/^(?:The\s+(?:proper|corrected)\s+job\s+title\s+is\s+)?([^,\.]+?)(?:\s*,\s*which\s+refers\s+to|\s*\.|$)/i);
       if (match && match[1]) {
         data.corrected = match[1].trim();
@@ -310,7 +473,9 @@ Respond ONLY with valid JSON. Do not include any other text.`
       }
     }
     
-    res.status(200).json(data || { valid: false, reason: 'Could not validate job title' });
+    const finalResult = data || { valid: false, reason: 'Could not validate job title' };
+    setCacheResult(cacheKey, JSON.stringify(finalResult));
+    res.status(200).json(finalResult);
   } catch (error: any) {
     console.error('[Validation] Job Validation Error:', error?.message || error);
     // On error, allow through rather than blocking

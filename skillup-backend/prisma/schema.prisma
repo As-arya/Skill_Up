@@ -27,7 +27,7 @@ model Skill {
   id        Int      @id @default(autoincrement())
   userId    Int
   name      String
-  category  String   // "HARD" or "SOFT"
+  category  String   // Skill group/category name (e.g., "Backend Development", "General", "Mastered")
   isChecked Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -63,7 +63,7 @@ model LearningTarget {
   userId        Int
   skillName     String
   targetMinutes Int      @default(30)
-  deadline      String?  // ISO date string for simplicity with SQLite
+  deadline      String?  // ISO date string
   isCompleted   Boolean  @default(false)
   createdAt     DateTime @default(now())
 

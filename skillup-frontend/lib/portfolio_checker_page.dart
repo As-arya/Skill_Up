@@ -210,8 +210,16 @@ class _PortfolioCheckerPageState extends State<PortfolioCheckerPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return SizedBox.expand(
-      child: Stack(
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text('Portfolio Checker'),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        foregroundColor: theme.colorScheme.onSurface,
+        elevation: 0,
+      ),
+      body: Stack(
+        fit: StackFit.expand,
         children: [
           SafeArea(
           child: SingleChildScrollView(

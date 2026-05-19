@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import 'skill_page.dart';
-import 'portfolio_checker_page.dart';
-import 'cv_checker_page.dart';
-import 'skill_matching_page.dart';
 import 'projects_page.dart';
+import 'cv_checker_page.dart';
+import 'portfolio_checker_page.dart';
+import 'skill_matching_page.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -14,10 +14,14 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
+  int _currentIndex = 1; // 0=Skills, 1=Home, 2=Projects
 
   void _onTabSelected(int index) {
     setState(() => _currentIndex = index);
+  }
+
+  void _openPage(Widget page) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -31,11 +35,15 @@ class _MainShellState extends State<MainShell> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          HomePage(onNavigateToTab: _onTabSelected),
           const SkillPage(),
-          const PortfolioCheckerPage(),
-          const CvCheckerPage(),
-          const SkillMatchingPage(),
+          HomePage(
+            onNavigateToTab: (index) {
+              if (index == 3) _openPage(const CvCheckerPage());
+              else if (index == 4) _openPage(const PortfolioCheckerPage());
+              else if (index == 5) _openPage(const SkillMatchingPage());
+              else _onTabSelected(index);
+            },
+          ),
           const ProjectsPage(),
         ],
       ),
@@ -52,12 +60,9 @@ class _MainShellState extends State<MainShell> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home_filled, Icons.home_outlined, 'Home', 0),
-              _buildNavItem(Icons.list, Icons.list, 'Skills', 1),
-              _buildNavItem(Icons.work, Icons.work_outline, 'Portfolio', 2),
-              _buildNavItem(Icons.description, Icons.description_outlined, 'CV', 3),
-              _buildNavItem(Icons.track_changes, Icons.track_changes, 'Match', 4),
-              _buildNavItem(Icons.folder, Icons.folder_outlined, 'Projects', 5),
+              _buildNavItem(Icons.list, Icons.list_outlined, 0),
+              _buildNavItem(Icons.home_filled, Icons.home_outlined, 1),
+              _buildNavItem(Icons.folder, Icons.folder_outlined, 2),
             ],
           ),
         ),
@@ -65,7 +70,7 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  Widget _buildNavItem(IconData activeIcon, IconData inactiveIcon, String label, int index) {
+  Widget _buildNavItem(IconData activeIcon, IconData inactiveIcon, int index) {
     final isActive = _currentIndex == index;
     final cs = Theme.of(context).colorScheme;
     final color = isActive ? cs.primary : cs.onSurface.withValues(alpha: 0.4);
@@ -73,13 +78,9 @@ class _MainShellState extends State<MainShell> {
     return GestureDetector(
       onTap: () => _onTabSelected(index),
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isActive ? activeIcon : inactiveIcon, color: color, size: 26),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+        child: Icon(isActive ? activeIcon : inactiveIcon, color: color, size: 28),
       ),
     );
   }

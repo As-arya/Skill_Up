@@ -3,8 +3,8 @@ services:
     name: skillup-backend
     runtime: node
     rootDir: .
-    buildCommand: npm install && npm run build && npx prisma generate
-    startCommand: npx prisma migrate deploy && npm start
+    buildCommand: npm install && NODE_ENV=production npx prisma generate && npm run build
+    startCommand: NODE_ENV=production npx tsx scripts/migrate-prod.ts && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,4 +13,6 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
         sync: false

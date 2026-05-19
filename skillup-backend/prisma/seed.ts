@@ -1,12 +1,7 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import bcrypt from "bcryptjs";
-import path from "node:path";
 
-// Prisma 7 requires a driver adapter — db is at project root (same as prisma.config.ts)
-const dbPath = path.join(process.cwd(), "dev.db");
-const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 Seeding database...");
@@ -53,7 +48,7 @@ async function main() {
       create: {
         userId: user.id,
         name: skill.name,
-        category: "HARD",
+        category: "General",
         isChecked: skill.isChecked,
       },
     });
@@ -66,7 +61,7 @@ async function main() {
       create: {
         userId: user.id,
         name: skill.name,
-        category: "SOFT",
+        category: "General",
         isChecked: skill.isChecked,
       },
     });
@@ -159,3 +154,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

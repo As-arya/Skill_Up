@@ -261,9 +261,8 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 32),
                 // Skills Gap row
                 GestureDetector(
-                  onTap: () => widget.onNavigateToTab?.call(1),
+                  onTap: () => widget.onNavigateToTab?.call(0),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: t.scaffoldBackgroundColor,
                       borderRadius: BorderRadius.circular(14),
@@ -323,9 +322,15 @@ class _HomePageState extends State<HomePage> {
             // ─── Quick Actions ──────────────────────────
             Text('Quick Actions', style: TextStyle(color: cs.onSurface, fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
-            _buildQuickAction('Check CV', Icons.description_outlined, [const Color(0xFF13B5EA), const Color(0xFF2C6CFF)], () => widget.onNavigateToTab?.call(3)),
-            _buildQuickAction('Analyze Portfolio', Icons.work_outline, [const Color(0xFFFF2E93), const Color(0xFFFF8E53)], () => widget.onNavigateToTab?.call(2)),
-            _buildQuickAction('Skill Match', Icons.track_changes, [const Color(0xFF8A2BE2), const Color(0xFFB066FF)], () => widget.onNavigateToTab?.call(4)),
+            _buildQuickAction('Check CV', Icons.description_outlined, [const Color(0xFF13B5EA), const Color(0xFF2C6CFF)], () {
+              widget.onNavigateToTab?.call(3);
+            }),
+            _buildQuickAction('Analyze Portfolio', Icons.work_outline, [const Color(0xFFFF2E93), const Color(0xFFFF8E53)], () {
+              widget.onNavigateToTab?.call(4);
+            }),
+            _buildQuickAction('Skill Match', Icons.track_changes, [const Color(0xFF8A2BE2), const Color(0xFFB066FF)], () {
+              widget.onNavigateToTab?.call(5);
+            }),
 
             const SizedBox(height: 32),
 
@@ -569,7 +574,7 @@ class _HomePageState extends State<HomePage> {
         if (total > 3) ...[
           const SizedBox(height: 4),
           GestureDetector(
-            onTap: () => widget.onNavigateToTab?.call(1),
+            onTap: () => widget.onNavigateToTab?.call(0),
             child: Text(
               '+ ${total - subSkills.length} more in Skills tab',
               style: const TextStyle(color: Color(0xFFB066FF), fontSize: 12, fontWeight: FontWeight.w500),

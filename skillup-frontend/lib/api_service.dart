@@ -2,13 +2,17 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 /// Central API service for all backend calls.
-/// Android emulator accesses host machine via 10.0.2.2.
 class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
 
-  // Use 10.0.2.2 for Android Emulator to reach localhost on host machine.
-  static const String _baseUrl = 'http://10.0.2.2:3000/api';
+  // Base URL is injected at build time via --dart-define=API_BASE_URL=...
+  // Defaults to Android emulator localhost for local development.
+  // For production build: flutter run --dart-define=API_BASE_URL=https://skillup-backend.onrender.com/api
+  static const String _baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:3000/api',
+  );
 
   Map<String, String> _headers(String? token) => {
         'Content-Type': 'application/json',

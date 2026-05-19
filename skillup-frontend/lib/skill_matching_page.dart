@@ -642,8 +642,13 @@ class _SkillMatchingPageState extends State<SkillMatchingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: Stack(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Skill Match'),
+        elevation: 0,
+      ),
+      body: Stack(
+        fit: StackFit.expand,
         children: [
           SafeArea(
             child: SingleChildScrollView(

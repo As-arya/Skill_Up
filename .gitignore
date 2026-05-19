@@ -10,7 +10,7 @@ old_code.txt
 
 # Node (Backend)
 node_modules/
-.next/
+dist/
 
 # Flutter (Frontend)
 .dart_tool/
@@ -18,5 +18,12 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 .kotlin/
+android/.gradle/
+android/local.properties
 
+# macOS metadata
 .DS_Store
+
+# Temp / log files
+analyze_out.txt
+*.log
