@@ -2,35 +2,25 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
-// Production: always use PostgreSQL via DATABASE_URL
-// Local dev: set DATABASE_URL to empty or don't set it, use `npm run dev` with SQLite separately
-const databaseUrl = process.env.DATABASE_URL || "";
+// Railway/Production: Always use PostgreSQL.
+// DATABASE_URL must be set in Railway environment variables.
+// For local dev, run with: npm run dev (uses separate local config)
+const databaseUrl = process.env.DATABASE_URL;
 
-let adapter: any;
-
-if (databaseUrl.startsWith("postgresql://") || databaseUrl.startsWith("postgres://")) {
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-  });
-  adapter = new PrismaPg(pool);
-} else {
-  // Local dev fallback: SQLite
-  const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3");
-  const path = require("node:path");
-  const dbPath = path.join(process.cwd(), "dev.db");
-  adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
+if (!databaseUrl) {
+  console.error("[FATAL] DATABASE_URL environment variable is not set!");
+  console.error("[FATAL] Available env keys:", Object.keys(process.env).filter(k => k.startsWith("DATA") || k.startsWith("NODE") || k.startsWith("PORT")).join(", "));
+  process.exit(1);
 }
 
-// Prevent multiple Prisma Client instances in development (hot reload)
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient({ adapter });
+const adapter = new PrismaPg(pool);
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+export const prisma = new PrismaClient({ adapter });
