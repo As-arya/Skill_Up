@@ -8,10 +8,10 @@ class ApiService {
 
   // Base URL is injected at build time via --dart-define=API_BASE_URL=...
   // Defaults to Android emulator localhost for local development.
-  // For production build: flutter run --dart-define=API_BASE_URL=https://skillup-backend.onrender.com/api
+  // For production build: flutter run --dart-define=API_BASE_URL=https://skillup-production-f207.up.railway.app/api
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://skillup-production-f207.up.railway.app/api',
+    defaultValue: 'http://10.0.2.2:3000/api',
   );
 
   Map<String, String> _headers(String? token) => {
