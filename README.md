@@ -1,11 +1,4 @@
 # SkillUp
-
-## 1. App Name
-
-**SkillUp**
-
-## 2. Deskripsi Singkat
-
 SkillUp adalah aplikasi AI-powered career readiness platform yang membantu pengguna mengevaluasi kesiapan karier mereka. Aplikasi ini menyediakan fitur untuk menganalisis CV, mencocokkan skill dengan target role, mengevaluasi portfolio, mengelola daftar skill, mengelola project, dan memantau learning target.
 
 Secara arsitektur, SkillUp menggunakan pola client-server dengan Flutter sebagai frontend, Express.js sebagai backend REST API, Prisma sebagai ORM, PostgreSQL sebagai database, serta integrasi AI eksternal melalui Groq dan Gemini.
