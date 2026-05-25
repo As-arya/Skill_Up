@@ -23,7 +23,6 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response): Promise<vo
         id: true,
         name: true,
         email: true,
-        university: true,
         createdAt: true,
       },
     });

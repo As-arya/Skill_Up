@@ -288,7 +288,6 @@ describe('Bug 5: Profile Update - Missing PUT', () => {
       .send({
         name: 'Updated Name',
         email: 'updated@test.com',
-        university: 'Updated University',
       });
     
     // BUG CONFIRMATION: Returns 404 because no PUT handler exists

@@ -48,7 +48,6 @@ class ApiService {
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
-    required String university,
     required String password,
   }) async {
     final res = await http
@@ -58,7 +57,6 @@ class ApiService {
           body: jsonEncode({
             'name': name,
             'email': email,
-            'university': university,
             'password': password,
           }),
         )

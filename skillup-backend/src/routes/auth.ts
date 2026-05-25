@@ -45,7 +45,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, university } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required' });
@@ -79,7 +79,6 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       data: {
         name,
         email,
-        university: university || null,
         password: hashedPassword,
       },
     });

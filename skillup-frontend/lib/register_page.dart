@@ -64,7 +64,6 @@ class _RegisterPageState extends State<RegisterPage> {
       final data = await ApiService.instance.register(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        university: '',
         password: _passwordController.text,
       );
 

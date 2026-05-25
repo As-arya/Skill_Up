@@ -16,10 +16,11 @@ CREATE TABLE IF NOT EXISTS "User" (
   "id"         SERIAL PRIMARY KEY,
   "name"       TEXT NOT NULL,
   "email"      TEXT NOT NULL UNIQUE,
-  "university" TEXT,
   "password"   TEXT NOT NULL,
   "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE "User" DROP COLUMN IF EXISTS "university";
 
 CREATE TABLE IF NOT EXISTS "Skill" (
   "id"        SERIAL PRIMARY KEY,

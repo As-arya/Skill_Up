@@ -4,23 +4,22 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log("Seeding database...");
 
   // 1. Create demo user
   const hashedPassword = await bcrypt.hash("password123", 10);
 
   const user = await prisma.user.upsert({
-    where: { email: "alex@university.edu" },
+    where: { email: "alex@example.com" },
     update: {},
     create: {
       name: "Alex Johnson",
-      email: "alex@university.edu",
-      university: "Binus University",
+      email: "alex@example.com",
       password: hashedPassword,
     },
   });
 
-  console.log(`✅ User created: ${user.name} (${user.email})`);
+  console.log(`User created: ${user.name} (${user.email})`);
 
   // 2. Seed default skills
   const hardSkills = [
@@ -67,7 +66,7 @@ async function main() {
     });
   }
 
-  console.log(`✅ Skills seeded: ${hardSkills.length} hard + ${softSkills.length} soft`);
+  console.log(`Skills seeded: ${hardSkills.length} hard + ${softSkills.length} soft`);
 
   // 3. Seed sample projects
   const projects = [
@@ -124,7 +123,7 @@ async function main() {
     });
   }
 
-  console.log(`✅ Projects seeded: ${projects.length}`);
+  console.log(`Projects seeded: ${projects.length}`);
 
   // 4. Seed learning targets
   await prisma.learningTarget.deleteMany({ where: { userId: user.id } });
@@ -141,17 +140,16 @@ async function main() {
     });
   }
 
-  console.log(`✅ Learning targets seeded: ${targets.length}`);
-  console.log("\n🎉 Seed completed successfully!");
-  console.log("   Demo credentials: alex@university.edu / password123");
+  console.log(`Learning targets seeded: ${targets.length}`);
+  console.log("\nSeed completed successfully!");
+  console.log("   Demo credentials: alex@example.com / password123");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed failed:", e);
+    console.error("Seed failed:", e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
-

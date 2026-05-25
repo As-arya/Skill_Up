@@ -1,29 +1,63 @@
-# Kiro IDE workspace files
+# Local AI / assistant / context files
 .kiro/
+.agent/
+docs/
+AGENTS.md
+CLAUDE.md
+CARA_KERJA_AI.md
+
+# IDE / local machine files
+.vscode/
+.idea/
+*.iml
 
 # Scratch / backup files
 old_code.txt
+analyze_out.txt
+*.tmp
+*.bak
 
 # Secrets
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+google-services.json
+GoogleService-Info.plist
 
-# Node (Backend)
+# Node / backend generated files
 node_modules/
 dist/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Flutter (Frontend)
+# Local databases
+*.db
+*.db-journal
+
+# Flutter / frontend generated files
 .dart_tool/
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .kotlin/
-android/.gradle/
-android/local.properties
+devtools_options.yaml
+**/.gradle/
+**/local.properties
+**/build_output.txt
+
+# Build artifacts / release packages
+*.apk
+*.aab
+*.ipa
+*.app
 
 # macOS metadata
 .DS_Store
-
-# Temp / log files
-analyze_out.txt
-*.log

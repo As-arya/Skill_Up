@@ -27,7 +27,6 @@ async function createTestUser(email: string, name: string = 'Test User') {
       name,
       email,
       password: hashedPassword,
-      university: 'Test University',
     },
   });
   const token = signToken({ userId: user.id, email: user.email });
@@ -143,7 +142,6 @@ describe('Preservation 2: Auth Register - New user returns 201 with token and us
         name: 'New User',
         email: uniqueEmail,
         password: 'testpass123',
-        university: 'Test University',
       });
 
     // PRESERVATION: These assertions must pass on unfixed code
@@ -566,7 +564,7 @@ describe('Preservation 6: Learning Target Complete - PUT marks completed and ret
 /**
  * Validates: Requirements 3.7
  * WHEN a user fetches their profile via GET /api/profile THEN the system
- * SHALL CONTINUE TO return id, name, email, university, and createdAt
+ * SHALL CONTINUE TO return id, name, email, and createdAt
  */
 
 describe('Preservation 7: Profile Get - GET returns user profile fields', () => {
@@ -598,7 +596,6 @@ describe('Preservation 7: Profile Get - GET returns user profile fields', () => 
     expect(response.body.user).toHaveProperty('id');
     expect(response.body.user).toHaveProperty('name');
     expect(response.body.user).toHaveProperty('email');
-    expect(response.body.user).toHaveProperty('university');
     expect(response.body.user).toHaveProperty('createdAt');
     expect(response.body.user.id).toBe(userId);
     expect(response.body.user.name).toBe('Profile Test User');
