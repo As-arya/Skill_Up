@@ -18,7 +18,10 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, email: true, password: true },
+    });
     if (!user) {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
@@ -67,7 +70,10 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
     if (existingUser) {
       res.status(409).json({ error: 'Email already registered' });
       return;
@@ -82,6 +88,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
         university: university || null,
         password: hashedPassword,
       },
+      select: { id: true, name: true, email: true },
     });
 
     const token = signToken({ userId: newUser.id, email: newUser.email });
